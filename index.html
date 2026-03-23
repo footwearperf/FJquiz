@@ -913,10 +913,15 @@ var Q = [
 var L = ['A','B','C','D'];
 var done = new Array(Q.length).fill(false);
 var totalDone = 0, totalRight = 0;
+var sectionRight = {footwear:0, apparel:0, merch:0};
+var SHEET_URL = 'https://script.google.com/macros/s/AKfycbzJa-u0tlTOZaG1iuz4LNgQ33YYXNDDYBPquRSvAw2asiz1xbRlBqtoE-LxGfOEyBPH/exec';
+var sheetRowLogged = false;
 
 function buildQuiz() {
   done = new Array(Q.length).fill(false);
   totalDone = 0; totalRight = 0;
+  sectionRight = {footwear:0, apparel:0, merch:0};
+  sheetRowLogged = false;
   var fw = document.getElementById('qb-footwear');
   var ap = document.getElementById('qb-apparel');
   var me = document.getElementById('qb-merch');
@@ -953,7 +958,7 @@ function pick(qi, oi) {
   done[qi] = true; totalDone++;
   var q = Q[qi];
   var ok = (oi === q.c);
-  if (ok) totalRight++;
+  if (ok) { totalRight++; sectionRight[q.s]++; }
   for (var j = 0; j < q.o.length; j++) document.getElementById('ob-' + qi + '-' + j).disabled = true;
   document.getElementById('ob-' + qi + '-' + oi).classList.add(ok ? 'is-correct' : 'is-wrong');
   if (!ok) document.getElementById('ob-' + qi + '-' + q.c).classList.add('is-reveal');
@@ -988,6 +993,29 @@ function showResults() {
   document.getElementById('resHeading').textContent = h;
   document.getElementById('resSubtext').textContent = s;
   if (totalRight >= 18) document.getElementById('notifyWrap').classList.add('show');
+  logResults({name:'', location:'', email:''});
+}
+
+function logResults(person) {
+  if (sheetRowLogged) return;
+  sheetRowLogged = true;
+  var pct = Math.round(totalRight / Q.length * 100) + '%';
+  var payload = {
+    name: person.name || '',
+    location: person.location || '',
+    email: person.email || '',
+    score: totalRight + '/20',
+    percentage: pct,
+    footwear: sectionRight.footwear + '/9',
+    apparel: sectionRight.apparel + '/6',
+    merch: sectionRight.merch + '/5'
+  };
+  fetch(SHEET_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  }).catch(function(err) { console.warn('Sheet logging failed:', err); });
 }
 
 function restartQuiz() {
@@ -1051,6 +1079,9 @@ function submitForm() {
     'This message was generated automatically from the FootJoy Quiz.'
   ].join('\n'));
   window.location.href = 'mailto:tim_snow@acushnetgolf.com?subject=' + sub + '&body=' + bod;
+  // Log updated row with personal details
+  sheetRowLogged = false;
+  logResults({name: name, location: loc, email: eml});
   setTimeout(function() {
     document.getElementById('mFormWrap').classList.add('hide');
     document.getElementById('mSuccess').classList.add('show');
